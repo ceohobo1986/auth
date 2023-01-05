@@ -91,3 +91,10 @@ pub struct UsernameLookupPayload {
 pub struct UsernameLookupResponse {
     pub username: String,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChangePasswordPayload {
+    pub username: String,
+    pub current_password: String,
+    pub new_password: String
+}
