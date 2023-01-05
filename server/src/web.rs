@@ -106,6 +106,7 @@ fn verify(req: &Request) -> Result<Response, AuthError> {
 fn change_password(req: &Request) -> Result<Response, AuthError> {
     let body = req.data().unwrap();
     let payload: ChangePasswordPayload = serde_json::from_reader(body)?;
+    verify_username(&payload.username)?;
     auth::change_password(payload)?;
     Ok(Response::text("Ok"))
 }
@@ -129,7 +130,7 @@ pub fn start() {
                     "/generate_token" => ratelimit(request, generate_token),
                     "/delete_account" => ratelimit(request, delete_account),
                     "/verify" => verify(request),
-                    "/change_password" => change_password(request),
+                    "/change_password" => ratelimit(request, change_password),
                     _ => Ok(Response::empty_404()),
                 };
 
