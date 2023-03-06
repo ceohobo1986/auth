@@ -3,7 +3,7 @@ use crate::ratelimit::RateLimiter;
 use auth_common::{
     DeleteAccountPayload, DeleteAccountResponse, RegisterPayload, SignInPayload, SignInResponse,
     UsernameLookupPayload, UsernameLookupResponse, UuidLookupPayload, UuidLookupResponse,
-    ValidityCheckPayload, ValidityCheckResponse,
+    ValidityCheckPayload, ValidityCheckResponse, ChangePasswordPayload,
 };
 use lazy_static::lazy_static;
 use log::*;
@@ -103,6 +103,14 @@ fn verify(req: &Request) -> Result<Response, AuthError> {
     Ok(Response::json(&response))
 }
 
+fn change_password(req: &Request) -> Result<Response, AuthError> {
+    let body = req.data().unwrap();
+    let payload: ChangePasswordPayload = serde_json::from_reader(body)?;
+    verify_username(&payload.username)?;
+    auth::change_password(payload)?;
+    Ok(Response::text("Ok"))
+}
+
 pub fn start() {
     let addr = "0.0.0.0:19253";
     debug!("Starting webserver on {}", addr);
@@ -122,6 +130,7 @@ pub fn start() {
                     "/generate_token" => ratelimit(request, generate_token),
                     "/delete_account" => ratelimit(request, delete_account),
                     "/verify" => verify(request),
+                    "/change_password" => ratelimit(request, change_password),
                     _ => Ok(Response::empty_404()),
                 };
 

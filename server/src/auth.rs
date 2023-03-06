@@ -1,6 +1,6 @@
 use crate::cache::TimedCache;
 use argon2::Error as HashError;
-use auth_common::AuthToken;
+use auth_common::{AuthToken, ChangePasswordPayload};
 use lazy_static::lazy_static;
 use rusqlite::{params, Connection, Error as DbError, NO_PARAMS};
 use serde_json::Error as JsonError;
@@ -165,12 +165,31 @@ pub fn register(username_unfiltered: &str, password: &str) -> Result<(), AuthErr
         return Err(AuthError::UserExists);
     }
     let uuid = Uuid::new_v4().to_simple().to_string();
-    let hconfig = argon2::Config::default();
-    let pwhash = argon2::hash_encoded(password.as_bytes(), &salt(), &hconfig)?;
+    let pwhash = hash_password(password)?;
     db()?.execute(
         "INSERT INTO users (uuid, username, display_username, pwhash) VALUES(?1, ?2, ?3, ?4)",
         params![uuid, &username, username_unfiltered, pwhash],
     )?;
+    Ok(())
+}
+
+pub fn change_password(
+    ChangePasswordPayload {
+        username,
+        current_password,
+        new_password,
+    }: ChangePasswordPayload,
+) -> Result<(), AuthError> {
+    let username = username.to_lowercase();
+
+    if !is_valid(&username, &current_password)? {
+        Err(AuthError::UserDoesNotExist)?
+    }
+
+    let uuid = username_to_uuid(&username)?.to_simple().to_string();
+    let pwhash = hash_password(&new_password)?;
+
+    db()?.execute("UPDATE users SET pwhash = ?1 WHERE uuid = ?2", params![pwhash, uuid])?;
     Ok(())
 }
 
@@ -185,6 +204,12 @@ fn is_valid(username: &str, password: &str) -> Result<bool, AuthError> {
         .next()
         .ok_or(AuthError::InvalidLogin);
     result
+}
+
+/// Hashes a password using Argon2
+fn hash_password(password: &str) -> Result<String, AuthError> {
+    let hconfig = argon2::Config::default();
+    Ok(argon2::hash_encoded(password.as_bytes(), &salt(), &hconfig)?)
 }
 
 pub fn generate_token(username_unfiltered: &str, password: &str) -> Result<AuthToken, AuthError> {
